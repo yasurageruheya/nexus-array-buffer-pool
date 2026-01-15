@@ -49,7 +49,7 @@ export const test = ()=>
 			});
 		});
 
-		const slabIndex = internal.getSlabIndex(arrayBufferSize);
+		const slabIndex = internal.getPoolSlabIndex(arrayBufferSize);
 		expect(internal.pool[slabIndex]).toBe(undefined);
 		await new Promise<void>((resolve) => {
 			nexus.free(buffer).onDetach = resolve;
@@ -97,8 +97,8 @@ export const test = ()=>
 		const sizeB = 1024;
 
 		// スラブインデックスを取得 (NABPがスラブ単位で管理していることを利用)
-		const slabIndexA = internal.getSlabIndex(sizeA);
-		const slabIndexB = internal.getSlabIndex(sizeB);
+		const slabIndexA = internal.getPoolSlabIndex(sizeA);
+		const slabIndexB = internal.getPoolSlabIndex(sizeB);
 
 		// 復帰を待機するための Promise カウンター
 		let resolvedCount = 0;

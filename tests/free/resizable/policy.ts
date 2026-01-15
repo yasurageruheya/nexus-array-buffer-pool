@@ -3,10 +3,9 @@ import {getNexus, internal} from "../../main.test";
 
 export const test = ()=>
 {
-
-	if(!internal.isResizableArrayBufferSupported) return;
-
 	it("maxByteLength が maxArrayBufferSize と同じ値の ResizableArrayBuffer は endpoint が gc になる", async () => {
+		if (!internal.isResizableArrayBufferSupported) return;
+
 		const {nexus} = await getNexus({useSpy:false});
 		const byteLength = 1024;
 		const maxByteLength = Number(internal.maxArrayBufferSize);
@@ -16,6 +15,8 @@ export const test = ()=>
 	});
 
 	it("maxByteLength が maxArrayBufferSize より 1 でも小さければ ResizableArrayBuffer は endpoint が pool になる", async () => {
+		if (!internal.isResizableArrayBufferSupported) return;
+
 		const {nexus} = await getNexus({useSpy:false});
 		const byteLength = 1024;
 		const maxByteLength = Number(internal.maxArrayBufferSize) - 1;
@@ -23,4 +24,5 @@ export const test = ()=>
 
 		expect(statusB.endpoint).toBe("pool");
 	});
+
 }

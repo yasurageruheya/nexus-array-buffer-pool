@@ -5,9 +5,9 @@ export * as policy from "./policy";
 
 export const test = ()=>
 {
-	if (!internal.isResizableArrayBufferSupported) return;
-
 	it("ResizableArrayBuffer のクリーナー内での膨張予定容量を事前にメインスレッド側で計算し、クリーニング終了時には膨張予定容量をゼロにする", async () => {
+		if (!internal.isResizableArrayBufferSupported) return;
+
 		const {nexus} = await getNexus({useSpy:false});
 		await Promise.all([internal.cleanerReady, internal.allocatorReady]);
 
@@ -48,6 +48,8 @@ export const test = ()=>
 	});
 
 	it("ResizableArrayBuffer と ArrayBuffer が混在しても正しく容量は計算される", async () => {
+		if (!internal.isResizableArrayBufferSupported) return;
+
 		const {nexus} = await getNexus({useSpy:false});
 		await Promise.all([internal.cleanerReady, internal.allocatorReady]);
 
@@ -101,14 +103,16 @@ export const test = ()=>
 	});
 
 	it("maxByteLength と byteLength が別スラブになる場合、maxByteLength のスラブにプールされる", async () => {
+		if (!internal.isResizableArrayBufferSupported) return;
+
 		const {nexus} = await getNexus({useSpy:false});
 
 		const byteLength = 2000;
 		const maxByteLength = byteLength * 3;
 		await nexus.free(new ArrayBuffer(byteLength, {maxByteLength})).detached.done;
 
-		const slabIndexFromByteLength = internal.getSlabIndex(byteLength);
-		const slabIndexFromMaxByteLength = internal.getSlabIndex(maxByteLength);
+		const slabIndexFromByteLength = internal.getPoolSlabIndex(byteLength);
+		const slabIndexFromMaxByteLength = internal.getPoolSlabIndex(maxByteLength);
 
 		expect(slabIndexFromByteLength).not.toBe(slabIndexFromMaxByteLength);
 

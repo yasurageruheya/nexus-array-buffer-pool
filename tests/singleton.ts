@@ -1,7 +1,7 @@
 import {expect, it, vi} from "vitest";
 import {NexusArrayBufferPool} from "../index.js";
 
-import {internal} from "./main.test";
+import {getNexus, internal} from "./main.test";
 
 import {loadNexusArrayBufferPool} from "./common";
 
@@ -49,4 +49,10 @@ export const isolationTest = ()=>
 		// 状態がリセットされていないことを確認するため、再度試す
 		expect(() => new NexusArrayBufferPoolClass()).toThrow(internal.SINGLETON_ERROR);
 	});
+
+	it("internals.js 内での getter コール回数が正しくカウントされるか", async ()=> {
+		const {getterSpies} = await getNexus({useSpy:true});
+		internal.singleton.totalExternalMemory;
+		expect(getterSpies.singleton.totalExternalMemory).toHaveBeenCalledTimes(1);
+	})
 }

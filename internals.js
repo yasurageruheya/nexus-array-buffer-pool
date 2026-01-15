@@ -212,8 +212,12 @@ export const viewClassCheck = (ViewClass)=>
 export const acquireResult = (ViewClass, arrayBuffer, byteLength) =>
 {
 	byteLength = Number(byteLength);
-	if(byteLength !== arrayBuffer.byteLength && arrayBuffer.resizable)
+	if(arrayBuffer.resizable && byteLength !== arrayBuffer.byteLength)
+	{
+		setMainExternalMemory(mainExternalMemory - BigInt(arrayBuffer.byteLength - byteLength));
 		arrayBuffer.resize(byteLength);
+	}
+
 	if(ViewClass === ArrayBuffer) return arrayBuffer;
 	else if(typeof Buffer !== 'undefined' && ViewClass === Buffer)
 		return Buffer.from(arrayBuffer);
@@ -281,13 +285,21 @@ export const onCleaned = (message)=>
 {
 	const response = message.response;
 	isCleanerBusy = false;
+
+	let batchBuffers;
+	let ttlTimeout;
+	if(arrayBufferTTL >= 0)
+	{
+		batchBuffers = [];
+		ttlTimeout = Date.now() + arrayBufferTTL;
+	}
+
 	for(let i = response.length; i--;)
 	{
 		const res = response[i];
 		const internalStatus = internalCleaningStatuses.get(res.id);
 		const byteLength = BigInt(internalStatus.byteLength);
 		const expansion = internalStatus.expansion;
-		mainExternalMemory += byteLength + expansion;
 		cleaningMemory -= byteLength;
 		reserveExpansionMemory -= expansion;
 		const statuses = cleaningStatus.get(internalStatus);
@@ -308,15 +320,35 @@ export const onCleaned = (message)=>
 		}
 		else
 		{
+			mainExternalMemory += byteLength + expansion;
 			const buffer = res.buffer;
-			let index = self.getSlabIndex(buffer.byteLength);
-			if(buffer.byteLength > slabThresholds[index]) index--;
+			let index = self.getPoolSlabIndex(buffer.byteLength);
 			if(!pool[index]) pool[index] = new Set();
 			pool[index].add(buffer);
+
+			if(ttlTimeout)
+			{
+				ttlArrayBufferSet.add(buffer);
+				batchBuffers.push({buffer, slabIndex: index});
+			}
+
 			internalStatus.state = "done";
 			self.dispatchSettle(internalStatus);
 		}
 		internalCleaningStatuses.delete(res.id);
+	}
+
+	if(ttlTimeout)
+	{
+		if(batchBuffers.length)
+		{
+			let finalTimeout = ttlTimeout;
+			while(ttlStatus.has(finalTimeout)) {
+				finalTimeout++; // キーの重複を避けるための微調整
+			}
+			ttlStatus.set(finalTimeout, batchBuffers);
+			if(!ttlTimeoutTicket) ttlTimeoutTicket = setTimeout(self.ttlCheck, arrayBufferTTL);
+		}
 	}
 
 	if(cleanRequestQueue.size) {
@@ -402,6 +434,39 @@ export const dispatchSettle = (internalStatus)=>
 	}
 }
 
+/** @type {Set<ArrayBuffer>} */
+export const ttlArrayBufferSet = new Set();
+
+/** @type {Map<NodeJS.Timeout|number, Array<{buffer:ArrayBuffer, slabIndex:number}>>} */
+export const ttlStatus = new Map();
+
+/** @type {NodeJS.Timeout|number} */
+export let ttlTimeoutTicket;
+
+export const ttlCheck = ()=>
+{
+	const [timeout, first] = ttlStatus.entries().next().value;
+	for(let i = first.length; i--;)
+	{
+		const {buffer, slabIndex} = first[i];
+		if(ttlArrayBufferSet.delete(buffer))
+		{
+			pool[slabIndex].delete(buffer);
+			singleton.free(buffer, "gc");
+		}
+	}
+
+	ttlStatus.delete(timeout);
+
+	if(ttlStatus.size)
+	{
+		const nextTimeout = ttlStatus.keys().next().value;
+		const timeout = nextTimeout - Date.now();
+		ttlTimeoutTicket = setTimeout(self.ttlCheck, timeout >= 0 ? timeout : 0);
+	}
+	else ttlTimeoutTicket = null;
+}
+
 /** @type {BigUint64Array} */
 export let slabThresholds;
 
@@ -427,6 +492,27 @@ export const calculateSlabThresholds = () => {
 	MAX_POOL_CLASSES_LIMIT = thresholds.length;
 	slabThresholds = new BigUint64Array(thresholds);
 };
+
+export const getPoolSlabIndex = (size) => {
+	const s = BigInt(size);
+	if (s < slabThresholds[1]) return 0;
+
+	// 二分探索でインデックスを特定
+	let low = 0;
+	let high = slabThresholds.length - 1;
+
+	while (low <= high) {
+		const mid = (low + high) >>> 1;
+		if (slabThresholds[mid] < s) {
+			low = mid + 1;
+		} else {
+			high = mid - 1;
+		}
+	}
+	low = slabThresholds[low] === s ? low : low - 1;
+	// low が「size を収容できる最小のスラブインデックス」になる
+	return low < maxPoolClasses ? low : maxPoolClasses - 1;
+}
 
 /**
  *

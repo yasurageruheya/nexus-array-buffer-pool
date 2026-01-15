@@ -70,9 +70,9 @@ export const test = ()=>
 		const bufferA = new ArrayBuffer(byteLengthA);
 		const bufferB = new ArrayBuffer(byteLengthB);
 		const bufferC = new ArrayBuffer(byteLengthC);
-		const slabIndexA = internal.getSlabIndex(byteLengthA);
-		const slabIndexB = internal.getSlabIndex(byteLengthB);
-		const slabIndexC = internal.getSlabIndex(byteLengthC);
+		const slabIndexA = internal.getPoolSlabIndex(byteLengthA);
+		const slabIndexB = internal.getPoolSlabIndex(byteLengthB);
+		const slabIndexC = internal.getPoolSlabIndex(byteLengthC);
 		expect(bufferA.byteLength).toBe(byteLengthA);
 		expect(bufferB.byteLength).toBe(byteLengthB);
 		expect(bufferC.byteLength).toBe(byteLengthC);

@@ -1,5 +1,6 @@
 import {expect, it, Mock, vi} from "vitest";
 import {getNexus, internal} from "../../main.test";
+import {maxArrayBufferSize} from "../../../internals";
 
 export const test = ()=>
 {
@@ -29,7 +30,7 @@ export const test = ()=>
 		);
 	});
 
-	it("maxByteLength >= maxArrayBufferSizeの場合、returnToPoolがfalseになる", async () => {
+	it("maxByteLength >= maxArrayBufferSizeの場合、returnToPoolがfalseになる(ResizableArrayBuffer 未対応の場合スキップ)", async () => {
 		const {nexus, spies} = await getNexus({useSpy:true});
 
 		// テスト環境の ArrayBuffer.prototype.resize の有無に依存しないように、一時的にモック
@@ -45,10 +46,11 @@ export const test = ()=>
 			get: function() { return true; },
 			configurable: true
 		});
+		const maxByteLength = 2048;
 
-		const buffer = new ArrayBuffer(1024, {maxByteLength: 2048});
+		const buffer = new ArrayBuffer(1024, {maxByteLength});
 		// maxByteLength >= maxArrayBufferSize となるように設定
-		internal.setMaxArrayBufferSize(BigInt(buffer.maxByteLength - 100)); // internal.maxArrayBufferSize は 1948
+		internal.setMaxArrayBufferSize(BigInt(maxByteLength - 100)); // internal.maxArrayBufferSize は 1948
 		// buffer.maxByteLength (2048) は internal.maxArrayBufferSize (1948) より大きいので、
 		// (buffer.maxByteLength < internal.maxArrayBufferSize) は false になる
 		internal.setGcPolicyThreshold(BigInt(internal.DEFAULT_GC_POLICY_THRESHOLD));

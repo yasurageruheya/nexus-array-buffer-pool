@@ -15,7 +15,7 @@ import {
 	dirname, requestClean, isCleaningRequested, setIsCleaningRequested, isAllocatingRequested,
 	setIsAllocatingRequested, requestAllocate, dispatchDetach, dispatchSettle, setReserveExpansionMemory,
 	reserveExpansionMemory, cleaningMemory, calculateSlabThresholds, onAllocatorReady, onCleanerReady, acquireResult,
-	slabThresholds, ACQUIRE_VIEW_CLASS_ERROR, viewClassCheck,
+	slabThresholds, ACQUIRE_VIEW_CLASS_ERROR, viewClassCheck, ttlArrayBufferSet,
 } from "./internals.js";
 
 updateMainExternalMemory();
@@ -264,8 +264,9 @@ export class NexusArrayBufferPool
 
 	/**
 	 * @param {ArrayBuffer} arrayBuffer
+	 * @param {"pool"|"gc"} [endpoint="pool"]
 	 * @return {CleaningStatus} */
-	free(arrayBuffer)
+	free(arrayBuffer, endpoint="pool")
 	{
 		setCycleCount(cycleCount + 1);
 		if(cycleCount % 5 === 0)
@@ -292,64 +293,79 @@ export class NexusArrayBufferPool
 				dispatchDetach(internalStatus);
 				dispatchSettle(internalStatus);
 			});
+			return new CleaningStatus(internalStatus);
+		}
+
+		if(maxByteLength < slabThresholds[0])
+		{
+			if(typeof arrayBuffer.transfer === "function")
+			{
+				internalStatus = new InternalCleaningStatus("_-useless-_");
+				internalStatus.endpoint = "gc";
+				if(arrayBuffer.resizable) arrayBuffer.resize(0);
+				arrayBuffer.transfer();
+				internalStatus.state = "done";
+				queueMicrotask(()=>
+				{
+					dispatchDetach(internalStatus);
+					dispatchSettle(internalStatus);
+				});
+				return new CleaningStatus(internalStatus);
+			}
+			else endpoint = "gc";
+		}
+
+		/** @type {RequestCleanDetail} */
+		let request;
+
+		if(!cleanRequestQueue.has(arrayBuffer))
+		{
+			const id = Math.random().toString(36).substring(2);
+			internalStatus = new InternalCleaningStatus(id);
+			internalCleaningStatuses.set(id, internalStatus);
+
+			if(typeof arrayBuffer.transfer === "function")
+			{
+				arrayBuffer = arrayBuffer.transfer();
+				dispatchDetach(internalStatus);
+			}
+
+			request = {buffer: arrayBuffer, id};
+
+			internalStatus.state = "queued";
+			cleanRequestQueue.set(arrayBuffer, request);
+			if(!isCleanerBusy && !isCleaningRequested)
+			{
+				queueMicrotask(requestClean);
+				setIsCleaningRequested(true);
+			}
 		}
 		else
 		{
-			if(maxByteLength < slabThresholds[0])
-			{
-				if(typeof arrayBuffer.transfer === "function")
-				{
-					arrayBuffer.transfer();
-					internalStatus = new InternalCleaningStatus("_-useless-_");
-					internalStatus.state = "done";
-					internalStatus.endpoint = "gc";
-					queueMicrotask(()=>
-					{
-						dispatchDetach(internalStatus);
-						dispatchSettle(internalStatus);
-					});
-				}
-			}
-			else
-			{
-				/** @type {RequestCleanDetail} */
-				let request;
-
-				if(!cleanRequestQueue.has(arrayBuffer))
-				{
-					request = {buffer: arrayBuffer, id: Math.random().toString(36).substring(2)};
-					internalStatus = new InternalCleaningStatus(request.id);
-					internalCleaningStatuses.set(request.id, internalStatus);
-
-					internalStatus.state = "queued";
-					cleanRequestQueue.set(arrayBuffer, request);
-					if(!isCleanerBusy && !isCleaningRequested)
-					{
-						queueMicrotask(requestClean);
-						setIsCleaningRequested(true);
-					}
-				}
-				else
-				{
-					request = cleanRequestQueue.get(arrayBuffer);
-					internalStatus = internalCleaningStatuses.get(request.id);
-				}
-
-				request.returnToPool = maxByteLength < maxArrayBufferSize && (this.totalExternalMemory + BigInt(maxByteLength)) < gcPolicyThreshold;
-				internalStatus.endpoint = request.returnToPool ? "pool" : "gc";
-				/** @type {bigint} */
-				let expansionGap;
-				if(request.returnToPool) expansionGap = BigInt(maxByteLength - byteLength);
-				else expansionGap = 0n;
-
-				if(internalStatus.expansion !== expansionGap)
-					setReserveExpansionMemory(reserveExpansionMemory + (expansionGap - internalStatus.expansion));
-
-				internalStatus.expansion = expansionGap;
-				internalStatus.byteLength = byteLength;
-			}
-
+			request = cleanRequestQueue.get(arrayBuffer);
+			internalStatus = internalCleaningStatuses.get(request.id);
 		}
+
+		if(endpoint !== "gc")
+			request.returnToPool = maxByteLength < maxArrayBufferSize && (this.totalExternalMemory + BigInt(maxByteLength)) < gcPolicyThreshold;
+		else
+			request.returnToPool = false;
+
+		internalStatus.endpoint = request.returnToPool ? "pool" : "gc";
+
+		if(request.returnToPool)
+		{
+			/** @type {bigint} */
+			const expansionGap = BigInt(maxByteLength - byteLength);
+
+			if(internalStatus.expansion !== expansionGap)
+				setReserveExpansionMemory(reserveExpansionMemory + (expansionGap - internalStatus.expansion));
+
+			internalStatus.expansion = expansionGap;
+		}
+		else internalStatus.expansion = 0n;
+
+		internalStatus.byteLength = byteLength;
 
 		return new CleaningStatus(internalStatus);
 	}
@@ -371,25 +387,26 @@ export class NexusArrayBufferPool
 			if(cycleCount % 5 === 0)
 				updateMainExternalMemory();
 
-			const slabIndex = getSlabIndex(byteLength);
+			let slabIndex;
 
 
-			if(isResizableArrayBufferSupported && !maxByteLength)
-				maxByteLength = Number(slabThresholds[slabIndex]);
-			else if(!isResizableArrayBufferSupported && maxByteLength)
+			if(!isResizableArrayBufferSupported && maxByteLength)
 				maxByteLength = 0;
 
-			if(!isResizableArrayBufferSupported || !maxByteLength)
+			if(!maxByteLength)
 			{
+				slabIndex = getSlabIndex(byteLength);
 				if(pool[slabIndex]?.size)
 				{
 					const arrayBuffer = pool[slabIndex].values().next().value;
 					pool[slabIndex].delete(arrayBuffer);
+					if(arrayBufferTTL >= 0) ttlArrayBufferSet.delete(arrayBuffer);
 					return resolve(acquireResult(ViewClass, arrayBuffer, byteLength));
 				}
 			}
 			else
 			{
+				slabIndex = getSlabIndex(maxByteLength);
 				if(pool[slabIndex]?.size)
 				{
 					for(const arrayBuffer of pool[slabIndex])
@@ -397,8 +414,7 @@ export class NexusArrayBufferPool
 						if(typeof arrayBuffer.resize === "function")
 						{
 							pool[slabIndex].delete(arrayBuffer);
-							setMainExternalMemory(mainExternalMemory - BigInt(maxByteLength - byteLength));
-
+							if(arrayBufferTTL >= 0) ttlArrayBufferSet.delete(arrayBuffer);
 							return resolve(acquireResult(ViewClass, arrayBuffer, byteLength));
 						}
 					}
@@ -424,6 +440,9 @@ export class NexusArrayBufferPool
 
 			setReserveAllocationMemory(reserveAllocationMemory + BigInt(byteLength));
 			const id = Math.random().toString(36).substring(2);
+
+			if(isResizableArrayBufferSupported && !maxByteLength)
+				maxByteLength = Number(slabThresholds[slabIndex]);
 
 			/** @type {RequestAllocDetail} */
 			const request = {id, byteLength, maxByteLength};

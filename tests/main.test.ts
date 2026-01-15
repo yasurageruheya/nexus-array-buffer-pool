@@ -7,6 +7,7 @@ import * as singleton from "./singleton";
 import * as policy from "./policy";
 import * as free from "./free/free";
 import * as acquire from "./acquire/acquire";
+import * as ttl from "./ttl/ttl";
 import {loadNexusArrayBufferPool} from "./common";
 import {spy} from "./spy";
 import {NexusArrayBufferPool} from "../index";
@@ -110,6 +111,9 @@ describe("free 動作テスト", ()=> {
 		describe("ポリシー準拠の動作 free.policy", ()=>{
 			free.policy.test();
 		});
+		describe("スラブチェックテスト free.slab", ()=>{
+			free.slab.test();
+		});
 	});
 });
 
@@ -133,9 +137,25 @@ describe("acquire 動作テスト acquire", ()=> {
 			acquire.resizable.free.test()
 		});
 	});
-	describe("プールキャッシュテスト acquire.resizable", ()=> {
-		describe("キャッシュヒットテスト acquire.resizable.free", ()=>{
+	describe("プールキャッシュテスト acquire.cache", ()=> {
+		describe("キャッシュヒットテスト acquire.cache.miss", ()=>{
 			acquire.cache.hit.test();
 		});
+		describe("キャッシュミステスト acquire.cache.miss", ()=>{
+			acquire.cache.miss.test();
+		});
 	});
-})
+});
+
+
+
+describe("TTL 動作テスト ttl", ()=> {
+	beforeEach(async () => {
+		vi.resetModules();
+		vi.clearAllMocks();
+		internal = await import("../internals.js");
+	});
+	describe("基本動作テスト ttl", ()=> {
+		ttl.test();
+	});
+});

@@ -7,11 +7,11 @@ export const test = () => {
 		const {nexus, spies} = await getNexus({useSpy:true});
 
 		await nexus.free(new ArrayBuffer(byteLength)).detached.done;
-		const slabIndex = internal.getSlabIndex(byteLength);
-		expect(internal.pool[slabIndex].size).toBe(1);
-
+		debugger
+		const poolSlabIndex = internal.getPoolSlabIndex(byteLength);
+		expect(internal.pool[poolSlabIndex].size).toBe(1);
 		const promise = nexus.acquire(byteLength);
-		expect(internal.pool[slabIndex].size).toBe(0);
+		expect(internal.pool[poolSlabIndex].size).toBe(0);
 		expect(spies.acquireResult).toHaveBeenCalledTimes(1); //既に Promise 解決直前の関数が呼び出されている事の確認
 		const buffer = await promise;
 		expect(spies.allocator.postMessage).toHaveBeenCalledTimes(0); //アロケーター Worker と通信しなかった事の確認

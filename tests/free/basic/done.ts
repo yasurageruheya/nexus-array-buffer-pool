@@ -21,8 +21,8 @@ export const test = ()=> {
 		const byteLengthB = 2048;
 		const bufferA = new ArrayBuffer(byteLengthA);
 		const bufferB = new ArrayBuffer(byteLengthB);
-		const slabIndexA = internal.getSlabIndex(byteLengthA);
-		const slabIndexB = internal.getSlabIndex(byteLengthB);
+		const slabIndexA = internal.getPoolSlabIndex(byteLengthA);
+		const slabIndexB = internal.getPoolSlabIndex(byteLengthB);
 		expect(bufferA.byteLength).toBe(byteLengthA);
 		expect(bufferB.byteLength).toBe(byteLengthB);
 		const detachWait = [nexus.free(bufferA).detached.done, nexus.free(bufferB).detached.done];
@@ -33,7 +33,8 @@ export const test = ()=> {
 		expect(internal.pool[slabIndexB].size).toBe(1);
 	});
 
-	it("1つの pool.free().detached.done.then() に複数のコールバック（ユーザー関数）が捧げられても、正常に待機して解決できる", async () => {
+	it("1つの pool.free().detached.done.then() に複数のコールバック（ユーザー関数）が捧げられても、正常に待機して解決できる(arrayBuffer.transfer() に対応していない場合のみテスト)", async () => {
+		if(typeof ArrayBuffer.prototype.transfer === "function") return;
 		const {nexus} = await getNexus({useSpy:false});
 		const buffer = new ArrayBuffer(1024);
 		const slabIndex = internal.getSlabIndex(buffer.byteLength);

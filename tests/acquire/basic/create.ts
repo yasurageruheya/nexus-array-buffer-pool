@@ -21,7 +21,11 @@ export const test = () => {
 		expect(internal.isAllocatorBusy).toBe(false);
 
 		expect(buffer.byteLength).toBe(byteLength);
-		expect(buffer.resizable).toBe(true);
+
+		if(typeof ArrayBuffer.prototype.resize === "function")
+			expect(buffer.resizable).toBe(true);
+		else expect(buffer.resizable).toBeFalsy();
+
 		expect(buffer instanceof ArrayBuffer).toBe(true);
 		expect(spies.onAllocatorReady).toHaveBeenCalledTimes(1);
 		expect(spies.onAllocate).toHaveBeenCalledTimes(1);
@@ -41,7 +45,9 @@ export const test = () => {
 
 		expect(buffer.byteLength).toBe(byteLength);
 		expect(buffer instanceof ArrayBuffer).toBe(true);
-		expect(buffer.resizable).toBe(true);
+		if(typeof ArrayBuffer.prototype.resize === "function")
+			expect(buffer.resizable).toBe(true);
+		else expect(buffer.resizable).toBeFalsy();
 	});
 
 	it("TypedArray が作れる", async () => {
@@ -54,7 +60,9 @@ export const test = () => {
 		expect(view.byteLength).toBe(byteLength);
 		expect(view instanceof Uint8Array).toBe(true);
 		expect(view.buffer.byteLength).toBe(byteLength);
-		expect(view.buffer.resizable).toBe(true);
+		if(typeof ArrayBuffer.prototype.resize === "function")
+			expect(view.buffer.resizable).toBe(true);
+		else expect(view.buffer.resizable).toBeFalsy();
 	});
 
 
@@ -70,7 +78,10 @@ export const test = () => {
 		expect(buffer.byteLength).toBe(byteLength);
 		expect(buffer instanceof Buffer).toBe(true);
 		expect(buffer.buffer.byteLength).toBe(byteLength);
-		expect((buffer.buffer as ArrayBuffer).resizable).toBe(true);
+
+		if(typeof ArrayBuffer.prototype.resize === "function")
+			expect((buffer.buffer as ArrayBuffer).resizable).toBe(true);
+		else expect((buffer.buffer as ArrayBuffer).resizable).toBeFalsy();
 	});
 
 	it("DataView が作れる", async () => {
@@ -83,6 +94,9 @@ export const test = () => {
 		expect(view.byteLength).toBe(byteLength);
 		expect(view instanceof DataView).toBe(true);
 		expect(view.buffer.byteLength).toBe(byteLength);
-		expect((view.buffer as ArrayBuffer).resizable).toBe(true);
+
+		if(typeof ArrayBuffer.prototype.resize === "function")
+			expect((view.buffer as ArrayBuffer).resizable).toBe(true);
+		else expect((view.buffer as ArrayBuffer).resizable).toBeFalsy();
 	});
 }

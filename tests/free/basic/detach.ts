@@ -34,7 +34,8 @@ export const test = ()=> {
 		expect(internal.pool[slabIndexB]?.size).not.toBe(1);
 	});
 
-	it("1つの pool.free().detached.then() に複数のコールバック（ユーザー関数）が捧げられても、正常に待機して解決できる", async () => {
+	it("1つの pool.free().detached.then() に複数のコールバック（ユーザー関数）が捧げられても、正常に待機して解決できる(arrayBuffer.transfer() に対応していない場合のみテスト)", async () => {
+		if(typeof ArrayBuffer.prototype.transfer === "function") return;
 		const {nexus} = await getNexus({useSpy:false});
 		const buffer = new ArrayBuffer(1024);
 		const status = nexus.free(buffer);

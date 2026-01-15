@@ -19,7 +19,8 @@ export const test = ()=>
 		expect(internal.cleanRequestQueue.size).toBe(0); // キューはクリアされる
 	});
 
-	it("isCleanerBusyがtrueの場合、cleaner.postMessageは呼ばれず、cleanRequestQueueにリクエストが追加される", async () => {
+	it("isCleanerBusyがtrueの場合、cleaner.postMessageは呼ばれず、cleanRequestQueueにリクエストが追加される（arrayBuffer.transfer() に対応していない場合はスキップ）", async () => {
+		if(typeof ArrayBuffer.prototype.transfer !== "undefined") return;
 		const {nexus, spies} = await getNexus({useSpy:true});
 
 		spies.setIsCleanerBusy(true);
@@ -33,6 +34,23 @@ export const test = ()=>
 		expect(spies.cleaner.postMessage).not.toHaveBeenCalled();
 		expect(internal.cleanRequestQueue.has(buffer)).toBe(true);
 		expect(internal.cleanRequestQueue.get(buffer)).toEqual(expect.objectContaining({ buffer, returnToPool: true, id: expect.any(String) }));
+		expect(spies.requestClean).not.toHaveBeenCalled();
+	});
+
+	it("isCleanerBusyがtrueの場合、cleaner.postMessageは呼ばれず、cleanRequestQueueにリクエストが追加される(arrayBuffer.transfer() に対応している場合のみテスト)", async () => {
+		if(typeof ArrayBuffer.prototype.transfer === "undefined") return;
+		const {nexus, spies} = await getNexus({useSpy:true});
+
+		spies.setIsCleanerBusy(true);
+		(spies.setIsCleanerBusy as Mock).mockClear();
+		const buffer = new ArrayBuffer(1024);
+		nexus.free(buffer)
+		await new Promise<void>(resolve => {
+			setTimeout(resolve, 0);
+		});
+
+		expect(spies.cleaner.postMessage).not.toHaveBeenCalled();
+		expect(internal.cleanRequestQueue.has(buffer)).toBe(false);
 		expect(spies.requestClean).not.toHaveBeenCalled();
 	});
 }

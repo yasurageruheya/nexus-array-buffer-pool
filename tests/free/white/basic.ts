@@ -69,10 +69,4 @@ export const test = ()=>
 		nexus.free(buffer);
 		expect(spies.updateMainExternalMemory).not.toHaveBeenCalled();
 	});
-
-	it("internals.js 内での getter コール回数が正しくカウントされるか", async ()=> {
-		const {getterSpies} = await getNexus({useSpy:true});
-		internal.singleton.totalExternalMemory;
-		expect(getterSpies.singleton.totalExternalMemory).toHaveBeenCalledTimes(1);
-	})
 }

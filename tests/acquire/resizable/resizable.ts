@@ -11,7 +11,10 @@ export const test = () => {
 		const buffer:ArrayBuffer = await nexus.acquire(byteLength);
 
 		expect(buffer.byteLength).toBe(byteLength);
-		expect(buffer.resizable).toBe(true);
+
+		if(typeof ArrayBuffer.prototype.resize === "function")
+			expect(buffer.resizable).toBe(true);
+		else expect(buffer.resizable).toBeFalsy();
 	});
 	it("アロケーターが作る ResizableArrayBuffer は maxByteLength を指定しなければ自動で maxByteLength がスラブ内サイズの最大値になる", async () => {
 		const byteLength:number = 2700;
@@ -21,8 +24,12 @@ export const test = () => {
 		const maxByteLength:bigint = 3125n; //デフォルト設定での byteLength=2700 の時の最大スラブサイズはこの値のはず
 
 		expect(buffer.byteLength).toBe(byteLength);
-		expect(buffer.resizable).toBe(true);
-		expect(BigInt(buffer.maxByteLength)).toBe(maxByteLength);
 
+		if(typeof ArrayBuffer.prototype.resize === "function")
+		{
+			expect(buffer.resizable).toBe(true);
+			expect(BigInt(buffer.maxByteLength)).toBe(maxByteLength);
+		}
+		else expect(buffer.resizable).toBeFalsy();
 	});
 }

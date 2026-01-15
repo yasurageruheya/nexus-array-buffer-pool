@@ -117,7 +117,8 @@ export const test = ()=>
 		expect(internal.pool[slabIndex].size).toBe(1);
 	});
 
-	it("同じ ArrayBuffer を複数回 free() すると別な CleaningStatus が返ってくるため、それぞれに別なコールバックを与えてもコールバックの上書きが発生しない", async () => {
+	it("同じ ArrayBuffer を複数回 free() すると別な CleaningStatus が返ってくるため、それぞれに別なコールバックを与えてもコールバックの上書きが発生しない(arrayBuffer.transfer() に対応していない場合のみテスト)", async () => {
+		if(typeof ArrayBuffer.prototype.transfer === "function") return;
 		const {nexus} = await getNexus({useSpy:false});
 
 		const buffer = new ArrayBuffer(1024);
@@ -148,7 +149,8 @@ export const test = ()=>
 		expect(statusB.state).toBe("done");
 	});
 
-	it("同じ ArrayBuffer を複数回 free() すると別な CleaningStatus が返ってくるが、それぞれ await で正常に待機出来る", async () => {
+	it("同じ ArrayBuffer を複数回 free() すると別な CleaningStatus が返ってくるが、それぞれ await で正常に待機出来る(arrayBuffer.transfer() に対応していない場合のみテスト)", async () => {
+		if(typeof  ArrayBuffer.prototype.transfer === "function") return;
 		const {nexus} = await getNexus({useSpy:false});
 
 		const buffer = new ArrayBuffer(1024);
