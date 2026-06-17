@@ -298,12 +298,16 @@ export class NexusArrayBufferPool
 
 		if(maxByteLength < slabThresholds[0])
 		{
-			if(typeof arrayBuffer.transfer === "function")
+			if(typeof arrayBuffer.transfer === "function" || typeof globalThis.structuredClone === "function")
 			{
 				internalStatus = new InternalCleaningStatus("_-useless-_");
 				internalStatus.endpoint = "gc";
+
 				if(arrayBuffer.resizable) arrayBuffer.resize(0);
-				arrayBuffer.transfer();
+
+				if(typeof arrayBuffer.transfer === "function") arrayBuffer.transfer(0);
+				else globalThis.structuredClone(arrayBuffer, {transfer: [arrayBuffer]});
+
 				internalStatus.state = "done";
 				queueMicrotask(()=>
 				{
@@ -327,6 +331,11 @@ export class NexusArrayBufferPool
 			if(typeof arrayBuffer.transfer === "function")
 			{
 				arrayBuffer = arrayBuffer.transfer();
+				dispatchDetach(internalStatus);
+			}
+			else if(typeof globalThis.structuredClone === "function")
+			{
+				arrayBuffer = structuredClone(arrayBuffer, {transfer: [arrayBuffer]});
 				dispatchDetach(internalStatus);
 			}
 
